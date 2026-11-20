@@ -1,10 +1,9 @@
 # Changelog
 
-## 3.1.0 Lite — small full-feature distribution
+## 3.2.0 Full — complete Windows package without chat model
 
-- Keep NOVA's full existing application interface and backend features while removing runtimes, llama.cpp binaries, embedding weights and AI chat-model weights from the application ZIP.
-- Split prerequisites into a separate one-time installer. `Start NOVA.bat` now checks and launches only; it performs no downloads or installs.
-- Install Python 3.12 + pypdf and a pinned, SHA-256-verified llama.cpp CPU engine once into the extracted NOVA folder.
-- Keep GGUF model import in the app; no chat model is included or downloaded by setup.
-- Keep keyword retrieval available without embeddings; add a separate one-click verified optional embedding installer.
-- Pin the KaTeX browser assets to a CDN instead of downloading/vendor-copying them during startup.
+- Restored the intended full-package design: bundled Python runtime, pypdf, llama.cpp CPU engine, offline KaTeX assets, complete application source and all existing NOVA feature modules.
+- Excluded chat GGUF weights so users can import their own models.
+- Kept the optional embedding model as a separate, user-triggered install.
+- Changed startup to use the bundled runtime and engine with local checks only. No first-launch downloads or pip install.
+- Added a Windows Actions package workflow that validates bundled Python, llama.cpp startup, and absence of GGUF model files before producing the ZIP.
