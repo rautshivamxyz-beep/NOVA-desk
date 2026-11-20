@@ -14,7 +14,7 @@ on:
       - '.github/workflows/package-windows.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   windows-package:
@@ -135,3 +135,20 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           retention-days: 30
+
+      - name: Publish direct-download GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v3.2.0
+          name: NOVA Desktop 3.2.0 — Full (no chat model)
+          target_commitish: ${{ github.sha }}
+          generate_release_notes: false
+          body: |
+            Full NOVA Desktop Windows package with bundled Python runtime, PDF support, llama.cpp and offline KaTeX assets.
+            
+            No chat GGUF model is included. Import your own model after launching NOVA.
+          files: |
+            dist/NOVA-Desktop-3.2.0-Windows.zip
+            dist/NOVA-Desktop-3.2.0-Windows.zip.sha256
+          overwrite_files: true
+          fail_on_unmatched_files: true
