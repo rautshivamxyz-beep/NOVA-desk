@@ -12,40 +12,44 @@ class PackagingTests(unittest.TestCase):
         self.assertIn(f'VERSION = "{version}"', backend)
         self.assertIn(f"version -eq '{version}'", launcher)
 
-    def test_startup_never_downloads_or_installs(self):
+    def test_startup_uses_bundled_runtime_and_does_not_download(self):
         launcher = (ROOT / "Start-NOVA.ps1").read_text(encoding="utf-8")
+        self.assertIn("runtime\\python\\python.exe", launcher)
+        self.assertIn("llama-server.exe", launcher)
         self.assertNotIn("Invoke-WebRequest", launcher)
         self.assertNotIn("pip install", launcher)
         self.assertNotIn("Get-Download", launcher)
-        self.assertIn("Install NOVA Prerequisites.bat", launcher)
 
-    def test_prerequisite_installer_is_separate_and_verified(self):
-        installer = (ROOT / "Install-NOVA-Prerequisites.ps1").read_text(encoding="utf-8")
-        self.assertIn("Get-AuthenticodeSignature", installer)
-        self.assertIn("pypdf==6.19.0", installer)
-        self.assertIn("llama-b12565-bin-win-cpu-x64.zip", installer)
-        self.assertIn("ba675a702e8f3b2704da64f20fea1e532e63070e47f10f101644162f19415fbe", installer)
-        self.assertNotIn("Qwen3-", installer)
-        self.assertIn("$EngineExe = Join-Path $Root 'llama-server.exe'", installer)
-        embed_installer = (ROOT / "Install-NOVA-Embeddings.ps1").read_text(encoding="utf-8")
-        self.assertIn("771705d3231fb60715dad2e960f5220cfbaa866786257082e845d91fc8b0d0ee", embed_installer)
-
-    def test_model_import_is_documented(self):
-        readme = (ROOT / "README.md").read_text(encoding="utf-8")
-        self.assertIn("import your own", readme)
-        self.assertIn("Start NOVA.bat", readme)
-
-    def test_katex_uses_pinned_cdn_not_bootstrap_download(self):
+    def test_katex_assets_are_packaged_by_windows_build(self):
         html = (ROOT / "web/index.html").read_text(encoding="utf-8")
-        self.assertIn("katex@0.16.22", html)
-        self.assertNotIn("/vendor/katex/", html)
+        self.assertIn("/vendor/katex/katex.min.css", html)
+        self.assertIn("/vendor/katex/katex.min.js", html)
+        workflow = (ROOT / ".github/workflows/package-windows.yml").read_text(encoding="utf-8")
+        self.assertIn("katex-0.16.22.tgz", workflow)
+        self.assertIn("vendor\\katex", workflow)
 
-    def test_readable_application_source_is_packaged(self):
-        self.assertTrue((ROOT / "app/nova_backend.py").is_file())
-        self.assertTrue((ROOT / "web/index.html").is_file())
-        self.assertTrue((ROOT / "Start NOVA.bat").is_file())
-        self.assertTrue((ROOT / "Install NOVA Prerequisites.bat").is_file())
-        self.assertTrue((ROOT / "Install NOVA Embeddings.bat").is_file())
+    def test_windows_build_bundles_runtime_and_excludes_models(self):
+        workflow = (ROOT / ".github/workflows/package-windows.yml").read_text(encoding="utf-8")
+        self.assertIn("python-3.12.10-embed-amd64.zip", workflow)
+        self.assertIn("pypdf==6.19.0", workflow)
+        self.assertIn("llama-b12565-bin-win-cpu-x64.zip", workflow)
+        self.assertIn("No GGUF model files", workflow)
+        self.assertIn("upload-artifact@v4", workflow)
+
+    def test_model_import_is_kept(self):
+        html = (ROOT / "web/index.html").read_text(encoding="utf-8")
+        self.assertTrue("gguf" in html.lower())
+        backend = (ROOT / "app/nova_backend.py").read_text(encoding="utf-8")
+        self.assertIn("def start_download", backend)
+        self.assertIn("def start_engine", backend)
+
+    def test_core_features_are_kept(self):
+        backend = (ROOT / "app/nova_backend.py").read_text(encoding="utf-8")
+        for token in ("flashcard", "reminder", "backup", "memory", "recipe", "document"):
+            self.assertIn(token, backend.lower())
+        html = (ROOT / "web/index.html").read_text(encoding="utf-8")
+        for token in ("Study", "Documents", "Memory", "Models", "Health"):
+            self.assertIn(token, html)
 
 
 if __name__ == "__main__":
