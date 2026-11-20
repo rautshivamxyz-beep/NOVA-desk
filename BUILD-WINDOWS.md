@@ -1,30 +1,26 @@
-# NOVA Desktop 3.1.0 Lite — Windows build notes
+# NOVA Desktop 3.2.0 — Full Windows package
 
-## Package design
+## Package contents
 
-The release ZIP contains application source and launch scripts only. It excludes Python, pypdf, llama.cpp binaries/DLLs, embedding weights and chat-model weights to keep the package small. `Install NOVA Prerequisites.bat` is a separate one-time setup workflow; `Start NOVA.bat` only checks that setup is complete and starts the backend.
+The GitHub Actions Windows build includes:
 
-## Requirements installed once
+- Full NOVA backend and frontend source.
+- Python 3.12.10 embeddable x64 runtime.
+- `pypdf==6.19.0` staged into the bundled interpreter.
+- llama.cpp CPU x64 build `b12565`, pinned by SHA-256.
+- KaTeX 0.16.22 JS, CSS, fonts and auto-render helper for offline LaTeX display.
+- Windows one-click launch, stop and desktop shortcut scripts.
 
-- Python 3.12 (the installer can install a private user copy).
-- `pypdf==6.19.0`.
-- The pinned llama.cpp CPU x64 build `b12565`, verified by SHA-256 `ba675a702e8f3b2704da64f20fea1e532e63070e47f10f101644162f19415fbe`.
+No GGUF files are shipped. The user imports a chat model from NOVA's Models screen. The optional embedding model can be installed separately with `Install NOVA Embeddings.bat`.
 
-The Python installer signature is checked against the Python Software Foundation. Download files are staged and verified before being moved into their final location. No AI chat model is installed by the prerequisite script.
+## Build
 
-## Engine location
+The `.github/workflows/package-windows.yml` workflow runs on `windows-latest`, downloads pinned upstream assets, verifies Python and llama.cpp SHA-256 digests, assembles the self-contained folder, checks the bundled interpreter and engine, confirms no GGUF file entered the bundle, compresses the ZIP, generates a ZIP SHA-256 file and uploads a 30-day GitHub Actions artifact.
 
-The app expects `llama-server.exe` and its required DLLs beside the NOVA launcher. The prerequisite installer places these files in the extracted app folder after verifying the downloaded archive. Do not delete the engine files after setup.
+## Startup
 
-## Tests
+`Start NOVA.bat` runs `Start-NOVA.ps1`. The PowerShell launcher performs local file/runtime/engine self-checks, ensures a compatible NOVA service is not already running, starts the bundled Python backend, waits for the expected health/version response, then opens the local UI. Startup performs no downloads or package installation.
 
-```powershell
-python -m pip install -r requirements.txt
-python -m unittest discover -s tests -v
-```
+## User data
 
-CI parses all PowerShell scripts on Windows and runs backend tests on Windows and Linux.
-
-## Data
-
-Keep `data\\` and `models\\` when updating the app. Back up these folders separately. Do not commit user databases, imported models or local logs.
+Keep `data\\` and `models\\` when updating. These folders are not included in the generated release ZIP.
