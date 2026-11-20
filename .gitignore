@@ -1,7 +1,19 @@
-data/
-models/*.gguf
-models/*.part
+# Local personal data and model downloads
+/data/*
+!/data/README.txt
+/models/*.gguf
+/models/**/*.gguf
+/models/*.part
+/models/**/*.part
+/cache/
+/.cache/
+
+# Downloaded Windows runtime files
+/llama-server.exe
+/*.dll
+/llama-*.txt
+
+# Python-generated files
 __pycache__/
 *.py[cod]
 *.log
-*.part

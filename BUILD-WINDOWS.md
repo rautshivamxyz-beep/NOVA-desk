@@ -1,31 +1,39 @@
-# Building and testing NOVA Desktop on Windows
+# NOVA Desktop 3.0 — Windows build notes
 
-This repository contains the NOVA application source and regression tests. The downloadable Windows package additionally bundles the portable Python runtime, pypdf, llama.cpp executable/DLLs, offline KaTeX assets, and the embedding GGUF model.
+## One-click user setup
 
-## Requirements
-- Windows 10/11 (64-bit)
-- Python 3.12 (or the bundled runtime from the release ZIP)
-- pypdf==6.19.0 for PDF text extraction
-- A Windows llama-server.exe build and its matching DLLs in the application root
+The supported user flow is: download the repository using **Code → Download ZIP**, extract the ZIP, and double-click `Start NOVA.bat`. The launcher bootstraps the runtime and application, then opens NOVA in Edge or Chrome app mode.
 
-Install the Python dependency:
+First-run setup downloads or installs:
+
+- Python 3.12.10 for the current Windows user if Python 3.12 is not already available.
+- `pypdf==6.19.0` from `requirements.txt`.
+- KaTeX 0.19.1 and its fonts for offline math rendering.
+- Official llama.cpp CPU x64 build `b12565`, pinned by SHA-256 `ba675a702e8f3b2704da64f20fea1e532e63070e47f10f101644162f19415fbe`.
+- Optional `all-MiniLM-L6-v2` Q8 embedding GGUF, pinned by SHA-256 `771705d3231fb60715dad2e960f5220cfbaa866786257082e845d91fc8b0d0ee`.
+
+You then download a chat GGUF model from NOVA's Models screen or import your own model. First-time setup and model downloads require internet. Local chat is offline once the runtime and a model are installed.
+
+## Source layout
+
+- `app/nova_backend.py` — local HTTP/API backend, SQLite features, model process management, and tool router.
+- `web/index.html` — NOVA desktop interface.
+- `web/vendor/katex/` — offline KaTeX runtime assets, downloaded by the bootstrap if absent.
+- `tests/test_backend.py` — backend regression tests.
+
+The bootstrap reassembles six base64 text parts into a SHA-256-verified `tar.xz` archive and safely extracts it. GitHub Actions performs the same reconstruction, runs tests, and commits the readable source paths to `main`.
+
+## Run tests locally
 
 ```powershell
 python -m pip install -r requirements.txt
-```
-
-Run the backend from the repository root:
-
-```powershell
-python app\nova_backend.py
-```
-
-Run regression tests:
-
-```powershell
 python -m unittest discover -s tests -v
 ```
 
-For the one-click desktop experience, use the complete NOVA-Desktop-Windows release ZIP rather than this source-only checkout. Run Create Desktop Shortcut.bat once, then launch NOVA from the desktop icon or run start-nova-windows.bat.
+## Local endpoints
 
-User data, downloaded chat models, and runtime logs belong in data/ and models/; they must not be committed.
+- NOVA web/API: `127.0.0.1:8765`
+- llama.cpp chat engine: `127.0.0.1:8080`
+- optional embeddings engine: `127.0.0.1:8081`
+
+User data and downloaded models belong in `data/` and `models/`, never in version control.

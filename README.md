@@ -1,28 +1,48 @@
-# NOVA Desktop 3.0 (Windows)
+# NOVA Desktop 3.0 — Windows one-click
 
-NOVA is a local-first Windows assistant powered by a local GGUF model and llama.cpp. Chat and document features run on the computer; web search and Wikipedia lookups need internet access.
+NOVA is a local-first Windows assistant. The desktop interface runs in Microsoft Edge or Google Chrome, while local chat inference is powered by your chosen GGUF model through llama.cpp.
+
+## Start NOVA (one click)
+
+1. Open this repository: https://github.com/rautshivamxyz-beep/NOVA-desk
+2. Select **Code → Download ZIP** and extract the ZIP completely to a normal writable folder (for example, Documents\NOVA).
+3. Double-click **Start NOVA.bat**.
+4. On the first launch, NOVA sets up its private Python 3.12 runtime if required, installs PDF support, downloads offline math-rendering files, downloads and verifies the llama.cpp Windows CPU engine, and attempts to install the optional embedding model.
+5. NOVA opens in an Edge/Chrome app window. Open **Models** and download Qwen3 1.7B or Qwen3 0.6B, or import a `.gguf` file you already have.
+
+After setup, **Start NOVA.bat** is the one-click launcher. First-time setup and chat-model downloads require internet. Once your model and runtime are installed, local chat and saved data stay on this PC and work offline. Web search and Wikipedia need internet.
+
+To add a desktop shortcut, double-click **Create Desktop Shortcut.bat** once. Keep the launcher console open while NOVA runs; press Enter in that console to stop the NOVA instance cleanly. **Stop NOVA.bat** is also available.
 
 ## Features
-- Streaming chat with Markdown and offline KaTeX math rendering.
-- Local GGUF model download, import, selection, and engine restart.
-- Tool routing for calculator, saved memory, documents, Wikipedia, and web search.
-- PDF/text/Markdown document ingestion with semantic search when the bundled embedding model is available, and keyword fallback otherwise.
-- Notes, memory, flashcards with spaced review intervals, quizzes, reminders, reusable prompts, learned skills, and web lookup history.
-- Voice input and spoken replies through Edge/Chrome browser speech APIs.
+
+- Offline local-model chat with streaming, Markdown, and LaTeX.
+- GGUF model download, import, selection, and engine restart.
+- Tool routing for calculator, memory, documents, Wikipedia, and web search.
+- PDF/text/Markdown document Q&A and retrieval.
+- Notes, memory, flashcards with spaced review, quizzes, reminders, reusable prompts, and skills.
+- Browser voice input and spoken replies.
 - Health diagnostics and backup/restore.
 
-## Windows launch
-Use the complete Windows ZIP release. Extract it fully, run `Create Desktop Shortcut.bat` once, then launch from the NOVA desktop icon. For visible diagnostics, run `Start NOVA (show errors).bat`.
+Phone calls and SMS are not included in this desktop build.
 
-On first run choose Qwen3 1.7B or Qwen3 0.6B; the model downloads into `models`. You can import another `.gguf` from Models or drag it onto the app.
+## Source, updates and tests
 
-## Source checkout
-See [BUILD-WINDOWS.md](BUILD-WINDOWS.md). Main files are `app/nova_backend.py` and `web/index.html`; regression tests are in `tests/`. The Windows package additionally includes portable Python, llama.cpp Windows binaries, the PDF library, offline KaTeX assets, and the embedding model.
+The core source is stored in six checksum-verified archive parts to keep the repository download straightforward. On the first launch, the Windows bootstrap automatically reassembles and extracts the source. GitHub Actions also reassembles it, runs the backend regression tests, and commits the readable `app/`, `web/`, and `tests/` paths to `main`.
 
-## Verification
-The 3.0 backend regression tests and a browser UI smoke test pass in the development environment. Actual llama.cpp inference, Windows process startup, and Windows browser integration still need final verification on a Windows PC.
+See [BUILD-WINDOWS.md](BUILD-WINDOWS.md) for development, troubleshooting, and dependency details. Run tests with:
 
-## Licence
-No licence has been selected for the NOVA project source yet. Public visibility does not grant permission to reuse, modify, or redistribute this project. Add a licence before describing it as open-source.
+```powershell
+python -m pip install -r requirements.txt
+python -m unittest discover -s tests -v
+```
 
-User data, downloaded models, and logs must never be committed.
+## Data and privacy
+
+Notes, memory, documents, preferences, downloaded models, and logs are stored locally in `data/` and `models/`. These folders and downloaded runtime binaries are excluded from Git. Do not commit your personal data or model files.
+
+## Dependencies and licensing
+
+The launcher downloads Python from python.org, the pinned llama.cpp Windows CPU release from `ggml-org/llama.cpp` (SHA-256 verified), KaTeX from npm, and the optional embedding model from Hugging Face (SHA-256 verified). Review their individual licences and notices. No separate NOVA project licence has yet been selected; public visibility alone does not grant reuse or redistribution rights.
+
+Version: **3.0**.
