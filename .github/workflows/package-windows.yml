@@ -106,6 +106,8 @@ jobs:
           New-Item -ItemType Directory -Force -Path $KatexTarget | Out-Null
           Copy-Item (Join-Path $KatexDist '*') $KatexTarget -Recurse -Force
           if (!(Test-Path (Join-Path $KatexTarget 'contrib\auto-render.min.js'))) { throw 'KaTeX auto-render asset is missing.' }
+          $KatexLicense = Join-Path $KatexExtract 'package\LICENSE'
+          if (Test-Path $KatexLicense) { Copy-Item $KatexLicense (Join-Path $Bundle 'KaTeX-LICENSE.txt') -Force }
 
           # The chat GGUF and optional embedding GGUF are intentionally not shipped.
           $ModelFiles = Get-ChildItem -Path $Bundle -Filter '*.gguf' -File -Recurse -ErrorAction SilentlyContinue
@@ -139,6 +141,27 @@ jobs:
           try { $SmokeProcess.WaitForExit(8000) | Out-Null } catch { }
           if (!$SmokeProcess.HasExited) { Stop-Process -Id $SmokeProcess.Id -Force -ErrorAction SilentlyContinue }
           Remove-Item Env:\NOVA_NO_OPEN -ErrorAction SilentlyContinue
+
+          # Remove smoke-test output and bytecode caches; never ship local runtime state.
+          foreach ($TransientFolder in @('data','models')) {
+            $TransientPath = Join-Path $Bundle $TransientFolder
+            if (Test-Path $TransientPath) { Remove-Item $TransientPath -Recurse -Force }
+          }
+          Get-ChildItem -Path $Bundle -Directory -Filter '__pycache__' -Recurse -ErrorAction SilentlyContinue |
+            Sort-Object FullName -Descending | Remove-Item -Recurse -Force
+          Get-ChildItem -Path $Bundle -File -Filter '*.pyc' -Recurse -ErrorAction SilentlyContinue |
+            Remove-Item -Force
+          if (Test-Path (Join-Path $Bundle 'data')) { throw 'Smoke-test data directory was not removed.' }
+          if (Test-Path (Join-Path $Bundle 'models')) { throw 'Models directory unexpectedly entered the release package.' }
+          if (Get-ChildItem -Path $Bundle -Filter '*.gguf' -File -Recurse -ErrorAction SilentlyContinue) {
+            throw 'A GGUF model unexpectedly entered the release package.'
+          }
+          if (Get-ChildItem -Path $Bundle -Filter '*.pyc' -File -Recurse -ErrorAction SilentlyContinue) {
+            throw 'Python bytecode unexpectedly entered the release package.'
+          }
+          if (Get-ChildItem -Path $Bundle -Directory -Filter '__pycache__' -Recurse -ErrorAction SilentlyContinue) {
+            throw 'Python cache directories unexpectedly entered the release package.'
+          }
 
           $Zip = Join-Path $DistRoot "NOVA-Desktop-$Version-Windows.zip"
           if (Test-Path $Zip) { Remove-Item $Zip -Force }
