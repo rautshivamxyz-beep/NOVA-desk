@@ -76,6 +76,26 @@ class NovaBackendTests(unittest.TestCase):
         self.assertGreater(doc["chunks"], 0)
         self.assertTrue(nova.doc_search("chemical energy"))
 
+    def test_preferences_are_written_atomically_and_validate_type(self):
+        saved = nova.set_prefs({"mode": "detailed"})
+        self.assertEqual(saved["mode"], "detailed")
+        self.assertEqual(nova.get_prefs()["mode"], "detailed")
+        with self.assertRaises(ValueError):
+            nova.set_prefs(["not", "a", "mapping"])
+        self.assertEqual(nova.get_prefs()["mode"], "detailed")
+
+    def test_model_download_reservation_prevents_overlap(self):
+        with nova._dl_lock:
+            nova._dl.update(state="running", name="busy.gguf")
+        try:
+            result = nova.start_download(
+                "https://huggingface.co/example/repo/resolve/main/model.gguf", "model.gguf")
+            self.assertFalse(result["ok"])
+            self.assertIn("already running", result["error"])
+        finally:
+            with nova._dl_lock:
+                nova._dl.update(state="idle", name="", done=0, total=0, error="")
+
     def test_backup_restore_and_invalid_backup_error(self):
         nova.run("INSERT INTO notes(title,body,created,updated) VALUES(?,?,?,?)", ("Saved", "test data", 1, 1))
         nova.set_prefs({"mode": "detailed"})
