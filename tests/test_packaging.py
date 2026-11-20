@@ -16,6 +16,15 @@ class PackagingTests(unittest.TestCase):
         launcher = (ROOT / "Start-NOVA.ps1").read_text(encoding="utf-8")
         self.assertIn('with tarfile.open(source, "r:gz") as archive:', launcher)
         self.assertNotIn("tarfile.open(source, r:gz)", launcher)
+        start = launcher.index("$ExtractKatex = @'\\n") + len("$ExtractKatex = @'\\n")
+        end = launcher.index("\\n'@", start)
+        embedded_python = launcher[start:end]
+        compile(embedded_python, "<NOVA embedded KaTeX extractor>", "exec")
+
+    def test_readable_application_source_is_packaged(self):
+        self.assertTrue((ROOT / "app/nova_backend.py").is_file())
+        self.assertTrue((ROOT / "web/index.html").is_file())
+        self.assertTrue((ROOT / "Start NOVA.bat").is_file())
 
     def test_bootstrap_has_retries_and_verification(self):
         launcher = (ROOT / "Start-NOVA.ps1").read_text(encoding="utf-8")
