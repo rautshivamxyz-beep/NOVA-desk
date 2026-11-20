@@ -1,0 +1,7 @@
+data/
+models/*.gguf
+models/*.part
+__pycache__/
+*.py[cod]
+*.log
+*.part
