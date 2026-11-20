@@ -187,16 +187,21 @@ $LogErr = Join-Path $Root 'data\backend-error.log'
 $env:NOVA_NO_OPEN = '1'
 $BackendProcess = Start-Process -FilePath $Python -ArgumentList ('"{0}"' -f $BackendPath) -WorkingDirectory $Root -PassThru -WindowStyle Hidden -RedirectStandardOutput $LogOut -RedirectStandardError $LogErr
 $Ready = $false
+$StartupHealthError = ''
 for ($i = 0; $i -lt 60; $i++) {
     Start-Sleep -Seconds 1
     if ($BackendProcess.HasExited) { break }
     try {
         $Health = Invoke-RestMethod -Uri 'http://127.0.0.1:8765/api/health' -TimeoutSec 2
         if ($Health.version -eq '3.0.2') { $Ready = $true; break }
-        if ($Health.version) { throw "Unexpected NOVA version on port 8765: $($Health.version)" }
+        if ($Health.version) {
+            $StartupHealthError = "Unexpected NOVA version on port 8765: $($Health.version)"
+            break
+        }
     } catch { }
 }
 if (!$Ready) {
+    if ($StartupHealthError) { Write-Host "[NOVA] $StartupHealthError" -ForegroundColor Red }
     Write-Host '[NOVA] Startup failed. Recent logs:' -ForegroundColor Red
     if (Test-Path $LogOut) { Get-Content $LogOut -Tail 35 }
     if (Test-Path $LogErr) { Get-Content $LogErr -Tail 35 }
