@@ -1,0 +1,137 @@
+name: Build NOVA Desktop 3.2.0 Full (no chat model)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'app/**'
+      - 'web/**'
+      - '*.bat'
+      - '*.ps1'
+      - 'VERSION'
+      - 'requirements.txt'
+      - '.github/workflows/package-windows.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  windows-package:
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up build Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Verify release version
+        shell: powershell
+        run: |
+          $Version = (Get-Content VERSION -Raw).Trim()
+          if ($Version -ne '3.2.0') { throw "Expected VERSION 3.2.0, found $Version" }
+          if (!(Select-String -Path app/nova_backend.py -Pattern 'VERSION = "3.2.0"' -Quiet)) { throw 'Backend version mismatch.' }
+
+      - name: Build full offline runtime package (no GGUF models)
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $Version = '3.2.0'
+          $DistRoot = Join-Path $PWD 'dist'
+          $Bundle = Join-Path $DistRoot "NOVA-Desktop-$Version"
+          $Runtime = Join-Path $Bundle 'runtime\python'
+          New-Item -ItemType Directory -Force -Path $Runtime,(Join-Path $Bundle 'app'),(Join-Path $Bundle 'web'),(Join-Path $Bundle 'models') | Out-Null
+
+          # Copy the complete NOVA application and user-facing launch files.
+          Copy-Item 'app\*' (Join-Path $Bundle 'app') -Recurse -Force
+          Copy-Item 'web\*' (Join-Path $Bundle 'web') -Recurse -Force
+          $RootFiles = @('Start NOVA.bat','Start-NOVA.ps1','Stop NOVA.bat','Create Desktop Shortcut.bat',
+                         'Install-NOVA-Embeddings.ps1','Install NOVA Embeddings.bat',
+                         'README.md','BUILD-WINDOWS.md','CHANGELOG.md','VERSION','requirements.txt')
+          foreach ($File in $RootFiles) {
+            if (!(Test-Path $File)) { throw "Required package file missing: $File" }
+            Copy-Item $File $Bundle -Force
+          }
+
+          # Bundle an isolated Python 3.12 runtime. SHA-256 is pinned to the official python.org asset.
+          $PythonZip = Join-Path $env:TEMP 'python-3.12.10-embed-amd64.zip'
+          Invoke-WebRequest -UseBasicParsing -Uri 'https://www.python.org/ftp/python/3.12.10/python-3.12.10-embed-amd64.zip' -OutFile $PythonZip -TimeoutSec 600
+          $PythonHash = (Get-FileHash $PythonZip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($PythonHash -ne '4acbed6dd1c744b0376e3b1cf57ce906f9dc9e95e68824584c8099a63025a3c3') { throw "Python embeddable ZIP checksum mismatch: $PythonHash" }
+          Expand-Archive -Path $PythonZip -DestinationPath $Runtime -Force
+
+          # Add a site-packages path to the embeddable interpreter and install the pinned PDF parser.
+          $Pth = Get-ChildItem -Path $Runtime -Filter 'python*._pth' -File | Select-Object -First 1
+          if (!$Pth) { throw 'Python embeddable path configuration file is missing.' }
+          @('python312.zip','.','DLLs','Lib\site-packages','import site') | Set-Content -Path $Pth.FullName -Encoding ASCII
+          $SitePackages = Join-Path $Runtime 'Lib\site-packages'
+          New-Item -ItemType Directory -Force -Path $SitePackages | Out-Null
+          python -m pip install --disable-pip-version-check --no-compile --no-warn-script-location --target $SitePackages 'pypdf==6.19.0'
+          if ($LASTEXITCODE -ne 0) { throw 'Could not stage pypdf into the bundled Python runtime.' }
+          $BundledPython = Join-Path $Runtime 'python.exe'
+          & $BundledPython -c 'import sys,pypdf,sqlite3,ssl; print(sys.version); print("pypdf",pypdf.__version__)'
+          if ($LASTEXITCODE -ne 0) { throw 'Bundled Python runtime self-check failed.' }
+
+          # Bundle the pinned llama.cpp CPU engine and all DLLs from its official release archive.
+          $LlamaZip = Join-Path $env:TEMP 'llama-b12565-bin-win-cpu-x64.zip'
+          Invoke-WebRequest -UseBasicParsing -Uri 'https://github.com/ggml-org/llama.cpp/releases/download/b12565/llama-b12565-bin-win-cpu-x64.zip' -OutFile $LlamaZip -TimeoutSec 600
+          $LlamaHash = (Get-FileHash $LlamaZip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($LlamaHash -ne 'ba675a702e8f3b2704da64f20fea1e532e63070e47f10f101644162f19415fbe') { throw "llama.cpp archive checksum mismatch: $LlamaHash" }
+          $LlamaExtract = Join-Path $env:TEMP 'nova-llama-extract'
+          if (Test-Path $LlamaExtract) { Remove-Item $LlamaExtract -Recurse -Force }
+          Expand-Archive -Path $LlamaZip -DestinationPath $LlamaExtract -Force
+          $Server = Get-ChildItem -Path $LlamaExtract -Filter 'llama-server.exe' -File -Recurse | Select-Object -First 1
+          if (!$Server) { throw 'llama.cpp archive did not contain llama-server.exe.' }
+          Get-ChildItem -Path $Server.Directory.FullName -Force | Copy-Item -Destination $Bundle -Recurse -Force
+          Get-ChildItem -Path $LlamaExtract -Include 'LICENSE*','COPYING*' -File -Recurse | ForEach-Object { Copy-Item $_.FullName $Bundle -Force }
+          & (Join-Path $Bundle 'llama-server.exe') --version 2>&1 | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'Bundled llama-server.exe failed its Windows startup test.' }
+
+          # Bundle KaTeX assets so LaTeX rendering does not depend on a CDN or first-run download.
+          $KatexTgz = Join-Path $env:TEMP 'katex-0.16.22.tgz'
+          Invoke-WebRequest -UseBasicParsing -Uri 'https://registry.npmjs.org/katex/-/katex-0.16.22.tgz' -OutFile $KatexTgz -TimeoutSec 600
+          $KatexExtract = Join-Path $env:TEMP 'nova-katex-extract'
+          if (Test-Path $KatexExtract) { Remove-Item $KatexExtract -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $KatexExtract | Out-Null
+          tar.exe -xzf $KatexTgz -C $KatexExtract
+          $KatexDist = Join-Path $KatexExtract 'package\dist'
+          $KatexTarget = Join-Path $Bundle 'web\vendor\katex'
+          if (!(Test-Path (Join-Path $KatexDist 'katex.min.js'))) { throw 'KaTeX archive failed validation.' }
+          New-Item -ItemType Directory -Force -Path $KatexTarget | Out-Null
+          Copy-Item (Join-Path $KatexDist '*') $KatexTarget -Recurse -Force
+          if (!(Test-Path (Join-Path $KatexTarget 'contrib\auto-render.min.js'))) { throw 'KaTeX auto-render asset is missing.' }
+
+          # The chat GGUF and optional embedding GGUF are intentionally not shipped.
+          $ModelFiles = Get-ChildItem -Path $Bundle -Filter '*.gguf' -File -Recurse -ErrorAction SilentlyContinue
+          if ($ModelFiles) { throw 'No GGUF model files are allowed in this release ZIP.' }
+          if (Test-Path (Join-Path $Bundle 'data\nova.db')) { throw 'User database unexpectedly entered the package.' }
+
+          # Test the exact Python backend and offline web assets from the staged package.
+          Push-Location $Bundle
+          try {
+            & $BundledPython -c 'import runpy; runpy.run_path("app/nova_backend.py", run_name="nova_package_check")'
+            if ($LASTEXITCODE -ne 0) { throw 'Packaged backend import check failed.' }
+          } finally { Pop-Location }
+
+          $Zip = Join-Path $DistRoot "NOVA-Desktop-$Version-Windows.zip"
+          if (Test-Path $Zip) { Remove-Item $Zip -Force }
+          Compress-Archive -Path (Join-Path $Bundle '*') -DestinationPath $Zip -CompressionLevel Optimal
+          $Hash = (Get-FileHash $Zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$Hash  NOVA-Desktop-$Version-Windows.zip" | Set-Content "$Zip.sha256" -Encoding ASCII
+          Write-Host "Built $Zip"
+          Write-Host ("Size MB: {0:N2}" -f ((Get-Item $Zip).Length / 1MB))
+          Write-Host "SHA256: $Hash"
+
+      - name: Upload Windows package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NOVA-Desktop-3.2.0-Windows-no-chat-model
+          path: |
+            dist/NOVA-Desktop-3.2.0-Windows.zip
+            dist/NOVA-Desktop-3.2.0-Windows.zip.sha256
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
