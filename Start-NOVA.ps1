@@ -47,12 +47,10 @@ function Test-Python312([string]$Executable) {
     return ($LASTEXITCODE -eq 0)
 }
 
-# The compact source bundle is expanded after Python bootstrap below.
-$SourceArchive = Join-Path $Root 'NOVA-Desktop-3.0-core.tar.xz'
-$SourceParts = @(Get-ChildItem -Path (Join-Path $Root 'NOVA-Desktop-3.0-core.b64.part*') -File -ErrorAction SilentlyContinue | Sort-Object Name)
+# The repository ZIP contains the readable application source directly.
 $BackendPath = Join-Path $Root 'app\nova_backend.py'
-if (!(Test-Path $BackendPath) -and $SourceParts.Count -eq 0) {
-    Fail 'Source bundle is missing. Download the complete repository ZIP and extract it first.'
+if (!(Test-Path -LiteralPath $BackendPath -PathType Leaf)) {
+    Fail 'NOVA application source is missing. Download the complete repository ZIP and extract it again.'
 }
 
 # Use an existing Python 3.12 installation, or install a private user-scoped copy.
@@ -90,33 +88,6 @@ if (!$Python) {
     $Python = $LocalPython
 }
 
-if (!(Test-Path $BackendPath)) {
-    Write-Step 'Expanding NOVA application source'
-    $ExtractCode = @'
-import base64, hashlib, pathlib, sys, tarfile
-root = pathlib.Path(sys.argv[1]).resolve()
-parts = sorted(root.glob("NOVA-Desktop-3.0-core.b64.part*"))
-if not parts:
-    raise SystemExit("The source archive parts are missing.")
-encoded = "".join(p.read_text(encoding="ascii").strip() for p in parts)
-data = base64.b64decode(encoded, validate=True)
-expected = "a7089c2e86e5bf839b0524c68e1925db45f21cc61516b99258b4a7b58b9a31c2"
-if hashlib.sha256(data).hexdigest() != expected:
-    raise SystemExit("The source archive checksum did not match.")
-archive_path = root / "NOVA-Desktop-3.0-core.tar.xz"
-archive_path.write_bytes(data)
-with tarfile.open(archive_path, "r:xz") as archive:
-    for item in archive.getmembers():
-        target = (root / item.name).resolve()
-        if target != root and root not in target.parents:
-            raise SystemExit("Unsafe path in source bundle: " + item.name)
-    archive.extractall(root, filter="data")
-'@
-    & $Python -c $ExtractCode $Root
-    if ($LASTEXITCODE -ne 0) { Fail 'Could not expand the NOVA source archive.' }
-}
-
-if (!(Test-Path $BackendPath)) { Fail 'The NOVA backend source is missing after extraction.' }
 New-Item -ItemType Directory -Force -Path (Join-Path $Root 'data'), (Join-Path $Root 'models'), (Join-Path $Root 'models\embed'), (Join-Path $Root '.cache') | Out-Null
 
 Write-Step 'Checking Python packages'
