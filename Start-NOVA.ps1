@@ -101,7 +101,7 @@ if (!(Test-Path (Join-Path $KatexDir 'katex.min.js'))) {
     $ExtractKatex = @'
 import pathlib, sys, tarfile
 source, destination = sys.argv[1], pathlib.Path(sys.argv[2])
-with tarfile.open(source, "r:gz") as archive:
+with tarfile.open(source, 'r:gz') as archive:
     for item in archive.getmembers():
         prefix = "package/dist/"
         if not item.name.startswith(prefix) or not item.isfile():
