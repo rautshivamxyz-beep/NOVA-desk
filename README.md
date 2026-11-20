@@ -48,6 +48,8 @@ The launcher downloads Python from python.org, the pinned llama.cpp Windows CPU 
 Version: **3.0.2**.
 
 
-## 3.0.1 startup hotfix
+## 3.0.2 reliability update
 
-Fixed the first-run offline KaTeX installer: its Python `tarfile.open` mode is now correctly quoted as `'r:gz'`.\n\nFirst-run downloads now retry and stage temporary files before replacing assets. Python's installer signature is verified, llama.cpp and the embedding model are SHA-256 checked, and the launcher verifies the NOVA version on its local port before opening the UI.\n\nIf you already extracted an older ZIP, extract the latest ZIP into a fresh folder before launching.
+The first-run KaTeX extraction syntax error is fixed. First-run downloads retry and are staged before replacing valid files; Python's installer signature is checked, llama.cpp and the optional embedding model are SHA-256 verified, and the launcher checks the local NOVA version before opening the UI. Backend operations now prevent overlapping model transfers and engine restarts, settings are saved atomically, and backups use SQLite snapshots.
+
+Extract the newest ZIP into a fresh folder when upgrading. Back up personal notes and memory first; keep your existing GGUF model files separately if you want to reuse them.
