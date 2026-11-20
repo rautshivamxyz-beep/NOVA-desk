@@ -38,7 +38,7 @@ class PackagingTests(unittest.TestCase):
 
     def test_model_import_is_kept(self):
         html = (ROOT / "web/index.html").read_text(encoding="utf-8")
-        self.assertTrue("gguf" in html.lower())
+        self.assertIn("gguf", html.lower())
         backend = (ROOT / "app/nova_backend.py").read_text(encoding="utf-8")
         self.assertIn("def start_download", backend)
         self.assertIn("def start_engine", backend)
