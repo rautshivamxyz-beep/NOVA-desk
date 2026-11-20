@@ -1,4 +1,4 @@
-# NOVA Desktop 3.0 — Windows one-click
+# NOVA Desktop 3.0.2 — Windows one-click
 
 NOVA is a local-first Windows assistant. The desktop interface runs in Microsoft Edge or Google Chrome, while local chat inference is powered by your chosen GGUF model through llama.cpp.
 
@@ -17,12 +17,12 @@ To add a desktop shortcut, double-click **Create Desktop Shortcut.bat** once. Ke
 ## Features
 
 - Offline local-model chat with streaming, Markdown, and LaTeX.
-- GGUF model download, import, selection, and engine restart.
+- GGUF model download, import, selection, and engine restart, with overlapping transfers rejected cleanly.
 - Tool routing for calculator, memory, documents, Wikipedia, and web search.
 - PDF/text/Markdown document Q&A and retrieval.
 - Notes, memory, flashcards with spaced review, quizzes, reminders, reusable prompts, and skills.
 - Browser voice input and spoken replies.
-- Health diagnostics and backup/restore.
+- Health diagnostics and backup/restore. Settings are written atomically and database backups use SQLite snapshot support.
 
 Phone calls and SMS are not included in this desktop build.
 
@@ -45,9 +45,9 @@ Notes, memory, documents, preferences, downloaded models, and logs are stored lo
 
 The launcher downloads Python from python.org, the pinned llama.cpp Windows CPU release from `ggml-org/llama.cpp` (SHA-256 verified), KaTeX from npm, and the optional embedding model from Hugging Face (SHA-256 verified). Review their individual licences and notices. No separate NOVA project licence has yet been selected; public visibility alone does not grant reuse or redistribution rights.
 
-Version: **3.0.1**.
+Version: **3.0.2**.
 
 
 ## 3.0.1 startup hotfix
 
-Fixed the first-run offline KaTeX installer: its Python `tarfile.open` mode is now correctly quoted as `'r:gz'`. If you already extracted an older ZIP, extract the latest ZIP into a fresh folder before launching.
+Fixed the first-run offline KaTeX installer: its Python `tarfile.open` mode is now correctly quoted as `'r:gz'`.\n\nFirst-run downloads now retry and stage temporary files before replacing assets. Python's installer signature is verified, llama.cpp and the embedding model are SHA-256 checked, and the launcher verifies the NOVA version on its local port before opening the UI.\n\nIf you already extracted an older ZIP, extract the latest ZIP into a fresh folder before launching.
