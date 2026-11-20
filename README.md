@@ -28,7 +28,7 @@ Phone calls and SMS are not included in this desktop build.
 
 ## Source, updates and tests
 
-The core source is stored in six checksum-verified archive parts to keep the repository download straightforward. On the first launch, the Windows bootstrap automatically reassembles and extracts the source. GitHub Actions also reassembles it, runs the backend regression tests, and commits the readable `app/`, `web/`, and `tests/` paths to `main`.
+The readable source is committed directly in `app/`, `web/`, and `tests/`. GitHub Actions runs backend regression tests on Linux and Windows and parses the launcher with Windows PowerShell 5.1. There is no separate source bootstrap archive to go stale.
 
 See [BUILD-WINDOWS.md](BUILD-WINDOWS.md) for development, troubleshooting, and dependency details. Run tests with:
 
