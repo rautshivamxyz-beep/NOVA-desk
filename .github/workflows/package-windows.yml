@@ -88,7 +88,9 @@ jobs:
           if (!$Server) { throw 'llama.cpp archive did not contain llama-server.exe.' }
           Get-ChildItem -Path $Server.Directory.FullName -Force | Copy-Item -Destination $Bundle -Recurse -Force
           Get-ChildItem -Path $LlamaExtract -Include 'LICENSE*','COPYING*' -File -Recurse | ForEach-Object { Copy-Item $_.FullName $Bundle -Force }
-          cmd.exe /d /c `"`"$(Join-Path $Bundle 'llama-server.exe')`" --version >nul 2>&1`"
+          $ServerPath = Join-Path $Bundle 'llama-server.exe'
+          $LlamaCheck = '"' + $ServerPath + '" --version >NUL 2>&1'
+          cmd.exe /d /c $LlamaCheck
           if ($LASTEXITCODE -ne 0) { throw 'Bundled llama-server.exe failed its Windows startup test.' }
 
           # Bundle KaTeX assets so LaTeX rendering does not depend on a CDN or first-run download.
