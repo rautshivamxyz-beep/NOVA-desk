@@ -112,12 +112,33 @@ jobs:
           if ($ModelFiles) { throw 'No GGUF model files are allowed in this release ZIP.' }
           if (Test-Path (Join-Path $Bundle 'data\nova.db')) { throw 'User database unexpectedly entered the package.' }
 
-          # Test the exact Python backend and offline web assets from the staged package.
-          Push-Location $Bundle
-          try {
-            & $BundledPython -c 'import runpy; runpy.run_path("app/nova_backend.py", run_name="nova_package_check")'
-            if ($LASTEXITCODE -ne 0) { throw 'Packaged backend import check failed.' }
-          } finally { Pop-Location }
+          # Compile the backend, then launch it with the bundled interpreter and verify its health endpoint.
+          $BackendPath = Join-Path $Bundle 'app\nova_backend.py'
+          & $BundledPython -m py_compile $BackendPath
+          if ($LASTEXITCODE -ne 0) { throw 'Packaged backend Python compile check failed.' }
+          $env:NOVA_NO_OPEN = '1'
+          $SmokeOut = Join-Path $env:TEMP 'nova-package-smoke.log'
+          $SmokeErr = Join-Path $env:TEMP 'nova-package-smoke-error.log'
+          $SmokeProcess = Start-Process -FilePath $BundledPython -ArgumentList ('"{0}"' -f $BackendPath) -WorkingDirectory $Bundle -PassThru -WindowStyle Hidden -RedirectStandardOutput $SmokeOut -RedirectStandardError $SmokeErr
+          $Health = $null
+          for ($i = 0; $i -lt 30; $i++) {
+            Start-Sleep -Seconds 1
+            if ($SmokeProcess.HasExited) { break }
+            try {
+              $Health = Invoke-RestMethod -Uri 'http://127.0.0.1:8765/api/health' -TimeoutSec 2
+              if ($Health.version -eq $Version) { break }
+            } catch { }
+          }
+          if (!$Health -or $Health.version -ne $Version) {
+            if (Test-Path $SmokeOut) { Get-Content $SmokeOut -Tail 40 }
+            if (Test-Path $SmokeErr) { Get-Content $SmokeErr -Tail 40 }
+            if (!$SmokeProcess.HasExited) { Stop-Process -Id $SmokeProcess.Id -Force -ErrorAction SilentlyContinue }
+            throw 'The bundled NOVA backend did not pass its health check.'
+          }
+          try { Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8765/api/quit' -ContentType 'application/json' -Body '{}' -TimeoutSec 5 | Out-Null } catch { }
+          try { $SmokeProcess.WaitForExit(8000) | Out-Null } catch { }
+          if (!$SmokeProcess.HasExited) { Stop-Process -Id $SmokeProcess.Id -Force -ErrorAction SilentlyContinue }
+          Remove-Item Env:\NOVA_NO_OPEN -ErrorAction SilentlyContinue
 
           $Zip = Join-Path $DistRoot "NOVA-Desktop-$Version-Windows.zip"
           if (Test-Path $Zip) { Remove-Item $Zip -Force }
