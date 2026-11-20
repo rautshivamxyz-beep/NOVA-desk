@@ -16,8 +16,8 @@ class PackagingTests(unittest.TestCase):
         launcher = (ROOT / "Start-NOVA.ps1").read_text(encoding="utf-8")
         self.assertIn('with tarfile.open(source, "r:gz") as archive:', launcher)
         self.assertNotIn("tarfile.open(source, r:gz)", launcher)
-        start = launcher.index("$ExtractKatex = @'\\n") + len("$ExtractKatex = @'\\n")
-        end = launcher.index("\\n'@", start)
+        start = launcher.index("$ExtractKatex = @'\n") + len("$ExtractKatex = @'\n")
+        end = launcher.index("\n'@", start)
         embedded_python = launcher[start:end]
         compile(embedded_python, "<NOVA embedded KaTeX extractor>", "exec")
 
