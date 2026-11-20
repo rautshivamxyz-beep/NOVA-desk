@@ -22,7 +22,7 @@ LLAMA   = os.environ.get("NOVA_LLAMA", "http://127.0.0.1:8080")
 EMBED   = os.environ.get("NOVA_EMBED", "http://127.0.0.1:8081")
 PORT    = int(os.environ.get("NOVA_PORT", "8765"))
 UA      = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) NOVA-Desktop/3.0"
-VERSION = "3.0"
+VERSION = "3.0.2"
 MAX_JSON_BODY = 32 * 1024 * 1024
 MAX_BACKUP_BYTES = 100 * 1024 * 1024
 MAX_MODEL_BYTES = 64 * 1024 * 1024 * 1024
@@ -89,10 +89,22 @@ def get_prefs():
     return p
 
 def set_prefs(patch):
+    if patch is not None and not isinstance(patch, dict):
+        raise ValueError("Settings must be a JSON object.")
     p = get_prefs()
     p.update(patch or {})
-    with open(PREFS, "w", encoding="utf-8") as f:
-        json.dump(p, f, ensure_ascii=False, indent=1)
+    os.makedirs(os.path.dirname(PREFS), exist_ok=True)
+    fd, temp_path = tempfile.mkstemp(prefix="nova-prefs-", suffix=".json", dir=os.path.dirname(PREFS))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(p, f, ensure_ascii=False, indent=1)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(temp_path, PREFS)
+    except Exception:
+        try: os.remove(temp_path)
+        except OSError: pass
+        raise
     return p
 
 # ---------------------------------------------------------------- http helpers
@@ -740,13 +752,14 @@ class Handler(BaseHTTPRequestHandler):
         name = safe_model_name((q.get("name") or ["model.gguf"])[0])
         if not name:
             return self._json({"ok": False, "error": "Choose a valid .gguf model file."}, 400)
-        if _import.get("active"):
-            return self._json({"ok": False, "error": "Another model import is already running."}, 409)
         n = int(self.headers.get("Content-Length") or 0)
         if n <= 0 or n > MAX_MODEL_BYTES:
             return self._json({"ok": False, "error": "The model upload has an invalid size (maximum 64 GB)."}, 400)
+        with _import_lock:
+            if _import.get("active"):
+                return self._json({"ok": False, "error": "Another model import is already running."}, 409)
+            _import.update(active=True, name=name, done=0, total=n, error="")
         tmp = os.path.join(MODELS, name + ".%d.part" % os.getpid())
-        _import.update(active=True, name=name, done=0, total=n, error="")
         try:
             first = b""
             left = n
@@ -796,11 +809,28 @@ class Handler(BaseHTTPRequestHandler):
                 "data_dir": DATA, "root": ROOT, "counts": cnt}
 
     def _backup(self):
+        # Use SQLite's online backup API so a backup is a consistent snapshot
+        # even when another request is writing notes or memory at the same time.
         buf = io.BytesIO()
+        snapshot = sqlite3.connect(":memory:")
+        source = None
+        try:
+            if os.path.isfile(DB):
+                source = sqlite3.connect(DB, timeout=30)
+                source.backup(snapshot)
+                db_bytes = snapshot.serialize()
+            else:
+                db_bytes = b""
+        finally:
+            if source is not None: source.close()
+            snapshot.close()
         with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-            for fn in ("nova.db", "prefs.json"):
-                fp = os.path.join(DATA, fn)
-                if os.path.isfile(fp): z.write(fp, fn)
+            if db_bytes:
+                z.writestr("nova.db", db_bytes)
+            prefs_path = os.path.join(DATA, "prefs.json")
+            if os.path.isfile(prefs_path):
+                with open(prefs_path, "rb") as f:
+                    z.writestr("prefs.json", f.read())
         return buf.getvalue()
 
     def _restore(self, b):
@@ -873,7 +903,10 @@ def engine_models():
     except Exception: return []
 
 _dl = {"name": "", "done": 0, "total": 0, "state": "idle", "error": ""}
-def dl_state(): return dict(_dl)
+_dl_lock = threading.Lock()
+def dl_state():
+    with _dl_lock:
+        return dict(_dl)
 
 def safe_model_name(value):
     value = str(value or "").replace("\\", "/").split("/")[-1]
@@ -894,12 +927,14 @@ def valid_model_download_url(url):
 
 def start_download(url, name):
     name = safe_model_name(name)
-    if _dl["state"] == "running": return {"ok": False, "error": "A model download is already running."}
     if not name or not valid_model_download_url(url):
         return {"ok": False, "error": "Use a direct HTTPS model URL from huggingface.co or hf.co and a .gguf filename."}
+    with _dl_lock:
+        if _dl["state"] == "running":
+            return {"ok": False, "error": "A model download is already running."}
+        _dl.update(name=name, done=0, total=0, state="running", error="")
     tmp = os.path.join(MODELS, name + ".part")
     def work():
-        _dl.update(name=name, done=0, total=0, state="running", error="")
         try:
             req = urllib.request.Request(url, headers={"User-Agent": UA})
             with urllib.request.urlopen(req, timeout=60) as r, open(tmp, "wb") as f:
@@ -1026,6 +1061,7 @@ def growth_report():
 _proc = {"engine": None, "embed": None}
 _setup = {"downloading": False, "done": 0, "total": 0, "name": "", "error": "", "phase": ""}
 _import = {"active": False, "name": "", "done": 0, "total": 0, "error": ""}
+_import_lock = threading.Lock()
 MODEL_URLS = {
     "1.7b": ("Qwen3-1.7B-Q4_K_M.gguf", "https://huggingface.co/unsloth/Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q4_K_M.gguf"),
     "0.6b": ("Qwen3-0.6B-Q4_K_M.gguf", "https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q4_K_M.gguf"),
@@ -1071,8 +1107,13 @@ def engine_log_tail(n=14):
         return ""
 
 _running_model = {"path": "", "started": 0.0}
+_engine_lock = threading.RLock()
 
 def stop_engine():
+    with _engine_lock:
+        return _stop_engine_locked()
+
+def _stop_engine_locked():
     """Stop only llama-server processes launched by this NOVA instance."""
     ok = True
     for key in ("embed", "engine"):
@@ -1093,6 +1134,10 @@ def stop_engine():
     return ok
 
 def start_engine():
+    with _engine_lock:
+        return _start_engine_locked()
+
+def _start_engine_locked():
     m = find_model()
     if not m:
         _setup["error"] = "No model file in the models folder. Download one or import a .gguf model."
@@ -1146,11 +1191,14 @@ def start_engine():
         stop_engine()
         return False
 
+_setup_download_lock = threading.Lock()
+
 def download_model(which):
-    if _setup["downloading"]: return False
     name, url = MODEL_URLS.get(which, MODEL_URLS["0.6b"])
-    def work():
+    with _setup_download_lock:
+        if _setup["downloading"]: return False
         _setup.update(downloading=True, done=0, total=0, name=name, error="", phase="downloading")
+    def work():
         tmp = os.path.join(MODELS, name + ".part")
         try:
             req = urllib.request.Request(url, headers={"User-Agent": UA})
@@ -1303,13 +1351,27 @@ def update_download():
         if not os.path.isdir(dest_dir):
             dest_dir = os.path.expanduser("~")
         dest = os.path.join(dest_dir, "NOVA-Desktop-Windows-NEW.zip")
+        partial = dest + ".part"
         req = urllib.request.Request(u["zip"], headers={"User-Agent": UA})
-        with urllib.request.urlopen(req, timeout=300) as r, open(dest, "wb") as f:
-            while True:
-                b = r.read(262144)
-                if not b:
-                    break
-                f.write(b)
+        try:
+            with urllib.request.urlopen(req, timeout=300) as r, open(partial, "wb") as f:
+                total = 0
+                while True:
+                    b = r.read(262144)
+                    if not b: break
+                    total += len(b)
+                    if total > 2 * 1024 * 1024 * 1024:
+                        raise ValueError("The update archive exceeds the 2 GB safety limit.")
+                    f.write(b)
+                f.flush(); os.fsync(f.fileno())
+            if os.path.getsize(partial) < 1024:
+                raise ValueError("The downloaded update archive is empty or incomplete.")
+            os.replace(partial, dest)
+        except Exception:
+            try:
+                if os.path.exists(partial): os.remove(partial)
+            except OSError: pass
+            raise
         return {"ok": True, "path": dest, "tag": u.get("latest", ""), "size": os.path.getsize(dest), "zip": u.get("zip", "")}
     except Exception as e:
         return {"ok": False, "error": str(e), "zip": u.get("zip", "")}
