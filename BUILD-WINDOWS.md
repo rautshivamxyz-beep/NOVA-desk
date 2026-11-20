@@ -1,39 +1,30 @@
-# NOVA Desktop 3.0.2 — Windows build notes
+# NOVA Desktop 3.1.0 Lite — Windows build notes
 
-## One-click user setup
+## Package design
 
-The supported user flow is: download the repository using **Code → Download ZIP**, extract the ZIP, and double-click `Start NOVA.bat`. The launcher bootstraps the runtime and application, then opens NOVA in Edge or Chrome app mode.
+The release ZIP contains application source and launch scripts only. It excludes Python, pypdf, llama.cpp binaries/DLLs, embedding weights and chat-model weights to keep the package small. `Install NOVA Prerequisites.bat` is a separate one-time setup workflow; `Start NOVA.bat` only checks that setup is complete and starts the backend.
 
-First-run setup downloads or installs:
+## Requirements installed once
 
-- Python 3.12.10 for the current Windows user if Python 3.12 is not already available.
-- `pypdf==6.19.0` from `requirements.txt`.
-- KaTeX 0.19.1 and its fonts for offline math rendering.
-- Official llama.cpp CPU x64 build `b12565`, pinned by SHA-256 `ba675a702e8f3b2704da64f20fea1e532e63070e47f10f101644162f19415fbe`.
-- Optional `all-MiniLM-L6-v2` Q8 embedding GGUF, pinned by SHA-256 `771705d3231fb60715dad2e960f5220cfbaa866786257082e845d91fc8b0d0ee`.
+- Python 3.12 (the installer can install a private user copy).
+- `pypdf==6.19.0`.
+- The pinned llama.cpp CPU x64 build `b12565`, verified by SHA-256 `ba675a702e8f3b2704da64f20fea1e532e63070e47f10f101644162f19415fbe`.
 
-You then download a chat GGUF model from NOVA's Models screen or import your own model. First-time setup and model downloads require internet. Local chat is offline once the runtime and a model are installed.
+The Python installer signature is checked against the Python Software Foundation. Download files are staged and verified before being moved into their final location. No AI chat model is installed by the prerequisite script.
 
-## Source layout
+## Engine location
 
-- `app/nova_backend.py` — local HTTP/API backend, SQLite features, model process management, and tool router.
-- `web/index.html` — NOVA desktop interface.
-- `web/vendor/katex/` — offline KaTeX runtime assets, downloaded by the bootstrap if absent.
-- `tests/test_backend.py` — backend regression tests.
+The app expects `llama-server.exe` and its required DLLs beside the NOVA launcher. The prerequisite installer places these files in the extracted app folder after verifying the downloaded archive. Do not delete the engine files after setup.
 
-The readable application source is included directly in the repository ZIP; no source archive reconstruction is needed. The bootstrap retries failed downloads, stages them before replacing valid files, validates the Python installer signature, verifies llama.cpp and embedding assets by SHA-256, and checks the KaTeX JS/CSS/font assets before use. GitHub Actions parses the launcher with Windows PowerShell 5.1 and runs backend tests on Windows and Linux.
-
-The backend serializes llama.cpp start/stop operations, reserves model download/import jobs before worker threads begin, writes preferences atomically, and creates consistent SQLite backup snapshots.\n\n## Run tests locally
+## Tests
 
 ```powershell
 python -m pip install -r requirements.txt
 python -m unittest discover -s tests -v
 ```
 
-## Local endpoints
+CI parses all PowerShell scripts on Windows and runs backend tests on Windows and Linux.
 
-- NOVA web/API: `127.0.0.1:8765`
-- llama.cpp chat engine: `127.0.0.1:8080`
-- optional embeddings engine: `127.0.0.1:8081`
+## Data
 
-User data and downloaded models belong in `data/` and `models/`, never in version control.
+Keep `data\\` and `models\\` when updating the app. Back up these folders separately. Do not commit user databases, imported models or local logs.
