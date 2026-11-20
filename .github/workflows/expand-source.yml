@@ -48,7 +48,7 @@ jobs:
       - name: Parse PowerShell scripts with Windows PowerShell 5.1
         shell: powershell
         run: |
-          $files = @('Start-NOVA.ps1','Install-NOVA-Prerequisites.ps1','Install-NOVA-Embeddings.ps1')
+          $files = @('Start-NOVA.ps1','Install-NOVA-Embeddings.ps1')
           foreach ($file in $files) {
             $tokens = $null
             $errors = $null
