@@ -26,7 +26,8 @@ if (!(Test-Path -LiteralPath $LlamaServer -PathType Leaf)) {
     Fail 'llama-server.exe is missing. The NOVA engine files may have been removed by antivirus; restore the complete ZIP.'
 }
 try {
-    cmd.exe /d /c "`"$LlamaServer`" --version >nul 2>&1"
+    $LlamaCheck = '"' + $LlamaServer + '" --version >NUL 2>&1'
+    cmd.exe /d /c $LlamaCheck
     if ($LASTEXITCODE -ne 0) { Fail 'llama.cpp could not start. Install Microsoft Visual C++ 2015-2022 x64 Runtime and restore the NOVA folder if needed.' }
 } catch {
     Fail 'llama.cpp could not start. Install Microsoft Visual C++ 2015-2022 x64 Runtime and restore the NOVA folder if needed.'
