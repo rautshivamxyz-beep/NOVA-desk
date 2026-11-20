@@ -45,4 +45,9 @@ Notes, memory, documents, preferences, downloaded models, and logs are stored lo
 
 The launcher downloads Python from python.org, the pinned llama.cpp Windows CPU release from `ggml-org/llama.cpp` (SHA-256 verified), KaTeX from npm, and the optional embedding model from Hugging Face (SHA-256 verified). Review their individual licences and notices. No separate NOVA project licence has yet been selected; public visibility alone does not grant reuse or redistribution rights.
 
-Version: **3.0**.
+Version: **3.0.1**.
+
+
+## 3.0.1 startup hotfix
+
+Fixed the first-run offline KaTeX installer: its Python `tarfile.open` mode is now correctly quoted as `'r:gz'`. If you already extracted an older ZIP, extract the latest ZIP into a fresh folder before launching.
