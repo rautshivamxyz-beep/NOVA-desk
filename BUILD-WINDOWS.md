@@ -21,7 +21,7 @@ You then download a chat GGUF model from NOVA's Models screen or import your own
 - `web/vendor/katex/` — offline KaTeX runtime assets, downloaded by the bootstrap if absent.
 - `tests/test_backend.py` — backend regression tests.
 
-The bootstrap retries failed downloads, stages them before replacing valid files, validates the Python installer signature, verifies the llama.cpp and embedding assets by SHA-256, and checks the KaTeX JS/CSS/font assets before use. It reassembles base64 text parts into a SHA-256-verified `tar.xz` archive and safely extracts it. GitHub Actions also parses the launcher with Windows PowerShell 5.1 and runs backend tests on Windows. GitHub Actions performs the same reconstruction, runs tests, and commits the readable source paths to `main`.
+The readable application source is included directly in the repository ZIP; no source archive reconstruction is needed. The bootstrap retries failed downloads, stages them before replacing valid files, validates the Python installer signature, verifies llama.cpp and embedding assets by SHA-256, and checks the KaTeX JS/CSS/font assets before use. GitHub Actions parses the launcher with Windows PowerShell 5.1 and runs backend tests on Windows and Linux.
 
 The backend serializes llama.cpp start/stop operations, reserves model download/import jobs before worker threads begin, writes preferences atomically, and creates consistent SQLite backup snapshots.\n\n## Run tests locally
 
